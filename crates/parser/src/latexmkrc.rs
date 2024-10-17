@@ -64,7 +64,6 @@ mod v483 {
 
 mod v484 {
     use std::{path::Path, str::Lines};
-
     use syntax::latexmkrc::LatexmkrcData;
     use tempfile::tempdir;
 
@@ -85,17 +84,17 @@ mod v484 {
 
         let stdout = String::from_utf8_lossy(&output.stdout);
 
+        let lmk_cwd = extract_cwd(stdout.lines()).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "[LATEXMKRC] Could not infer the right working directory in latexmk\'s output.",
+            )
+        })?;
+
         let (aux_dir, out_dir) = extract_dirs(stdout.lines()).ok_or_else(|| {
             std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 "Normalized aux and out dir were not found in latexmk output",
-            )
-        })?;
-
-        let lmk_cwd = extract_cwd(stdout.lines()).ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Could not infer the right working directory in latexmk\'s output.",
             )
         })?;
 
@@ -116,18 +115,17 @@ mod v484 {
     ///     Latexmk: Cwd: '$cwd'
     /// ```
     fn extract_cwd(lines: Lines) -> Option<String> {
-        let mut it = lines
+        let line = lines
             .skip_while(|line| !line.starts_with("Latexmk: Cwd:"))
-            .nth(1)?
-            .strip_prefix("Latexmk: Cwd: ");
-
-        let cwd = it
-            .next()? // Skip ' Cwd:'
+            .nth(0)?
+            .strip_prefix("Latexmk: Cwd: ")
+            .unwrap_or("");
+        let line = line
             .trim()
-            .strip_prefix('\'')
-            .strip_suffix('\'');
+            .strip_prefix('\'')?
+            .strip_suffix('\'')?;
 
-        Some(String::from(cwd))
+        Some(String::from(line))
     }
 
     /// Extracts $aux_dir and $out_dir from lines of the form

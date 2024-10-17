@@ -1,3 +1,4 @@
+use log::warn;
 use url::Url;
 
 use crate::{util, DocumentData, Workspace};
@@ -80,8 +81,17 @@ impl ProjectRoot {
             .filter(|document| document.dir == *dir)
             .find_map(|document| document.data.as_latexmkrc())?;
 
-        let compile_dir = dir.clone();
-        let src_dir = dir.clone();
+        // Latexmkrc can require the working directory to be changed when `do_cd=1`:
+        let base_dir = match &rcfile.cwd {
+            Some(path) => {
+                println!("Latexmk required the new CWD: \'{}\'.", path);
+                dir.join(path).unwrap_or(dir.clone())
+            },
+            _ => dir.clone()
+        };
+
+        let compile_dir = base_dir.clone();
+        let src_dir = base_dir.clone();
 
         let aux_dir_rc = rcfile
             .aux_dir
