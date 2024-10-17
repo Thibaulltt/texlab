@@ -20,7 +20,7 @@ mod v483 {
         // building anything, since we need this invocation only to extract the
         // -dir-report variables.
         //
-        // In later versions, latexmk provides the -dir-report-only option and we
+        // In later versions, latexmk provides the -dir-report-only option, and we
         // won't have to resort to this hack with NONEXISTENT.tex.
         let output = std::process::Command::new("latexmk")
             .arg("-dir-report")
@@ -39,7 +39,7 @@ mod v483 {
 
         let aux_dir = change_root(src_dir, temp_dir.path(), &aux_dir);
         let out_dir = change_root(src_dir, temp_dir.path(), &out_dir);
-        Ok(LatexmkrcData { aux_dir, out_dir })
+        Ok(LatexmkrcData { cwd:None, aux_dir, out_dir })
     }
 
     /// Extracts $aux_dir and $out_dir from lines of the form
@@ -92,10 +92,42 @@ mod v484 {
             )
         })?;
 
+        let lmk_cwd = extract_cwd(stdout.lines()).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Could not infer the right working directory in latexmk\'s output.",
+            )
+        })?;
+
         let aux_dir = change_root(src_dir, temp_dir.path(), &aux_dir);
         let out_dir = change_root(src_dir, temp_dir.path(), &out_dir);
+        let lmk_cwd = change_root(src_dir, temp_dir.path(), &lmk_cwd);
 
-        Ok(LatexmkrcData { aux_dir, out_dir })
+        Ok(LatexmkrcData { cwd:lmk_cwd, aux_dir, out_dir })
+    }
+
+    /// Extracts the working directory as reported by latexmk.
+    ///
+    /// Can be different from `pwd` or the project root in
+    /// case the `do_cd` option is enabled in latexmkrc.
+    ///
+    /// The line is of the form:
+    /// ```
+    ///     Latexmk: Cwd: '$cwd'
+    /// ```
+    fn extract_cwd(lines: Lines) -> Option<String> {
+        let mut it = lines
+            .skip_while(|line| !line.starts_with("Latexmk: Cwd:"))
+            .nth(1)?
+            .strip_prefix("Latexmk: Cwd: ");
+
+        let cwd = it
+            .next()? // Skip ' Cwd:'
+            .trim()
+            .strip_prefix('\'')
+            .strip_suffix('\'');
+
+        Some(String::from(cwd))
     }
 
     /// Extracts $aux_dir and $out_dir from lines of the form
