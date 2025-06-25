@@ -84,8 +84,11 @@ impl ProjectRoot {
         // Latexmkrc can require the working directory to be changed when `do_cd=1`:
         let base_dir = match &rcfile.cwd {
             Some(path) => {
-                println!("Latexmk required the new CWD: \'{}\'.", path);
-                dir.join(path).unwrap_or(dir.clone())
+                warn!("[latexmkrc] Latexmk changes directory from \'{}\' to \'{}\'.", dir, path);
+                Url::from_directory_path(path).unwrap_or({
+                    warn!("[latexmkrc] Url::fromDir({}) error.", path);
+                    dir.clone()
+                })
             },
             _ => dir.clone()
         };

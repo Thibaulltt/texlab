@@ -43,10 +43,20 @@ pub fn discover(workspace: &mut Workspace, checked_paths: &mut FxHashSet<PathBuf
 }
 
 fn discover_parents(workspace: &mut Workspace, checked_paths: &mut FxHashSet<PathBuf>) -> bool {
+    log::debug!("Current paths for discover_parents():");
+    for entry in workspace.folders() {
+        log::debug!("\t- (dirs) {}", entry.to_str().unwrap());
+    }
+    for entry in workspace.iter() {
+        log::debug!("\t- (file) {}", entry.path.as_deref().map_or("", |p| p.to_str().unwrap()));
+    }
     let dirs = workspace
         .iter()
         .filter(|document| document.language != Language::Bib)
-        .filter_map(|document| document.path.as_deref())
+        .filter_map(|document| {
+            log::debug!("--> Considering {}...", document.path.as_deref().unwrap().to_str().unwrap_or("<error>"));
+            document.path.as_deref()
+        })
         .flat_map(|path| path.ancestors().skip(1))
         .filter(|path| workspace.contains(path))
         .map(|path| path.to_path_buf())
@@ -54,11 +64,18 @@ fn discover_parents(workspace: &mut Workspace, checked_paths: &mut FxHashSet<Pat
 
     let mut changed = false;
     for dir in dirs {
+        log::debug!("Converted paths for discover_parents():");
         if workspace
             .iter()
             .filter(|document| matches!(document.language, Language::Root | Language::Tectonic))
             .filter_map(|document| document.path.as_deref())
-            .filter_map(|path| path.parent())
+            .filter_map(|path| {
+                log::debug!("\t- Skipped {} --> {}",
+                    path.to_str().unwrap_or("<null>"),
+                    path.parent().map_or("<null>", |p| p.to_str().unwrap_or("<cannot convert to str>"))
+                );
+                path.parent()
+            })
             .any(|marker| dir.starts_with(marker))
         {
             continue;
@@ -70,7 +87,10 @@ fn discover_parents(workspace: &mut Workspace, checked_paths: &mut FxHashSet<Pat
 
         for file in entries
             .flatten()
-            .filter(|entry| entry.file_type().map_or(false, |type_| type_.is_file()))
+            .filter(|entry| {
+                log::debug!("\t- {}", entry.path().to_str().unwrap_or("<cannot get string from DirEntry>"));
+                entry.file_type().map_or(false, |type_| type_.is_file())
+            })
             .map(|entry| entry.path())
         {
             let Some(lang) = Language::from_path(&file) else {
@@ -86,6 +106,7 @@ fn discover_parents(workspace: &mut Workspace, checked_paths: &mut FxHashSet<Pat
 
             if workspace.lookup_file(&file).is_none() && file.exists() {
                 changed |= workspace.load(&file, lang).is_ok();
+                /* We should change the CWD here, and change all relative paths in the FxHashSet! */
                 checked_paths.insert(file);
             }
         }

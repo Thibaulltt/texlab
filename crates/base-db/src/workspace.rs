@@ -75,23 +75,38 @@ impl Workspace {
     ) {
         log::debug!("Opening document {uri}...");
         self.documents.remove(&uri);
-        self.documents.insert(Document::parse(DocumentParams {
+        let document = Document::parse(DocumentParams {
             uri,
             text,
             language,
             owner,
             cursor,
             config: &self.config,
-        }));
+        });
+
+        /* latexmkrc might need a different working directory: */
+        if language == Language::Latexmkrc {
+            if let Some(latexmkrcdata) = document.data.as_latexmkrc() {
+                if latexmkrcdata.cwd.is_some() {
+                    let path = Path::new(latexmkrcdata.cwd.as_ref().unwrap());
+                    self.folders.push(path.to_path_buf());
+                }
+            }
+        }
+
+        self.documents.insert(document);
 
         self.graphs = self
             .iter()
-            .map(|start| (start.uri.clone(), deps::Graph::new(self, start)))
+            .map(|start| {
+                log::debug!("[depsgraph] Starting a new depsgraph from {}", start.path.as_deref().map_or("", |p| p.to_str().unwrap_or("<cannot convert>")));
+                (start.uri.clone(), deps::Graph::new(self, start))
+            })
             .collect();
     }
 
     pub fn load(&mut self, path: &Path, language: Language) -> std::io::Result<()> {
-        log::debug!("Loading document {} from disk...", path.display());
+        log::debug!("Loading document {} ({:?}) from disk...", path.display(), language);
         let uri = Url::from_file_path(path).unwrap();
         let data = std::fs::read(path)?;
         let text = match String::from_utf8_lossy(&data) {
