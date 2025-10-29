@@ -13,10 +13,13 @@ use crate::{deps, Config, Document, DocumentParams, Owner};
 
 #[derive(Debug, Default)]
 pub struct Workspace {
+    /// All tracked or opened documents in the workspace.
     documents: FxHashSet<Document>,
+    /// Configuration derived from latexmk/tectonic/texlab config.
     config: Config,
     distro: Distro,
     folders: Vec<PathBuf>,
+    /// For every document, make a hashset of its dependencies
     graphs: FxHashMap<Url, deps::Graph>,
 }
 
@@ -65,6 +68,7 @@ impl Workspace {
         &self.folders
     }
 
+    /// This opens a file in a workspace, and does not (as its name implies) open a workspace itself
     pub fn open(
         &mut self,
         uri: Url,
@@ -73,7 +77,7 @@ impl Workspace {
         owner: Owner,
         cursor: LineCol,
     ) {
-        log::debug!("Opening document {uri}...");
+        log::warn!("Opening {:?} document {:?}...", language, uri.to_file_path().unwrap_or(PathBuf::new()));
         self.documents.remove(&uri);
         self.documents.insert(Document::parse(DocumentParams {
             uri,
@@ -83,6 +87,8 @@ impl Workspace {
             cursor,
             config: &self.config,
         }));
+
+        log::warn!("Workspace::open(): updating graphs...");
 
         self.graphs = self
             .iter()

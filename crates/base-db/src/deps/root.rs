@@ -25,21 +25,31 @@ impl ProjectRoot {
             .and_then(|path| Url::from_directory_path(path).ok());
 
         let mut current = dir.clone();
+
         loop {
             let root = Self::from_rootfile(workspace, &current)
                 .or_else(|| Self::from_tectonic(workspace, &current))
                 .or_else(|| Self::from_latexmkrc(workspace, &current));
 
+            log::warn!("ProjectRoot::walk_and_find(): walking up to dir {:?}...", &current.to_string());
+
             if let Some(root) = root {
+                log::warn!("Found project root = {{ .compile={}, .src={}, .aux={}, .log={}, .pdf={} }}", root.compile_dir, root.src_dir, root.aux_dir, root.log_dir, root.pdf_dir);
                 break root;
             }
 
             let Ok(parent) = current.join("..") else {
-                break Self::from_config(workspace, dir);
+                let newroot = Self::from_config(workspace, dir);
+                log::warn!("Found project root (as parent) = {{ .compile={}, .src={}, .aux={}, .log={}, .pdf={} }}", newroot.compile_dir, newroot.src_dir, newroot.aux_dir, newroot.log_dir, newroot.pdf_dir);
+                break newroot;
             };
 
+            log::warn!("ProjectRoot::walk_and_find(): parent is {:?}...", &parent.to_string());
+
             if current == parent || Some(&parent) == home_dir.as_ref() {
-                break Self::from_config(workspace, dir);
+                let newroot = Self::from_config(workspace, dir);
+                log::warn!("Found project root (as $HOME or /) = {{ .compile={}, .src={}, .aux={}, .log={}, .pdf={} }}", newroot.compile_dir, newroot.src_dir, newroot.aux_dir, newroot.log_dir, newroot.pdf_dir);
+                break newroot;
             }
 
             current = parent;

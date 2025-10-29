@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use distro::Language;
 use itertools::Itertools;
@@ -35,11 +35,13 @@ pub fn watch<T, C>(
 }
 
 pub fn discover(workspace: &mut Workspace, checked_paths: &mut FxHashSet<PathBuf>) {
+    log::warn!("Workspace::discover(): Current checked paths: {:?}", checked_paths.iter().collect_vec());
     loop {
         let mut changed = false;
         changed |= discover_parents(workspace, checked_paths);
         changed |= discover_children(workspace, checked_paths);
         if !changed {
+            log::warn!("Workspace::discover(): Stabilized. Final paths: {:?}", checked_paths.iter().collect_vec());
             break;
         }
     }
@@ -55,8 +57,15 @@ fn discover_parents(workspace: &mut Workspace, checked_paths: &mut FxHashSet<Pat
         .map(|path| path.to_path_buf())
         .collect::<FxHashSet<_>>();
 
+    log::warn!(
+        "Workspace::discover_parents(): documents:\n\t\t{:?}\n\t\tto check =\n\t\t{:?}",
+        workspace.iter().map(|document| document.path.as_deref()).collect_vec(),
+        dirs.iter() .collect_vec()
+    );
+
     let mut changed = false;
     for dir in dirs {
+        log::warn!("\tdiscover_parents(): checking {:?}", dir.to_str());
         if workspace
             .iter()
             .filter(|document| matches!(document.language, Language::Root | Language::Tectonic))
@@ -76,6 +85,9 @@ fn discover_parents(workspace: &mut Workspace, checked_paths: &mut FxHashSet<Pat
             .filter(|entry| entry.file_type().map_or(false, |type_| type_.is_file()))
             .map(|entry| entry.path())
         {
+            if file.exists() {
+                log::warn!("\t\t {:?} file (to check:{:?}) -- {:?}", Language::from_path(&file), workspace.lookup_file(&file).is_none(), &file.to_str());
+            }
             let Some(lang) = Language::from_path(&file) else {
                 continue;
             };
@@ -89,6 +101,7 @@ fn discover_parents(workspace: &mut Workspace, checked_paths: &mut FxHashSet<Pat
 
             if workspace.lookup_file(&file).is_none() && file.exists() {
                 changed |= workspace.load(&file, lang).is_ok();
+                log::warn!("\t\t--> Adding parent file {file:?}, changed workspace ? => {changed}");
                 checked_paths.insert(file);
             }
         }
@@ -106,12 +119,16 @@ fn discover_children(workspace: &mut Workspace, checked_paths: &mut FxHashSet<Pa
         .flat_map(|uri| uri.to_file_path())
         .collect::<FxHashSet<_>>();
 
+    log::warn!("Workspace::discover_children(): to check = {:?}", files.iter().collect_vec());
+
     let mut changed = false;
     for file in files {
         let language = Language::from_path(&file).unwrap_or(Language::Tex);
+        log::warn!("\t- {:?} (in ws:{:?}) -- {:?}", &language, workspace.lookup_file(&file).is_some(), &file.to_str());
 
         if workspace.lookup_file(&file).is_none() && file.exists() {
             changed |= workspace.load(&file, language).is_ok();
+            log::warn!("\t\t--> Adding child file {file:?}, changed workspace ? => {changed}");
             checked_paths.insert(file);
         }
     }

@@ -55,17 +55,23 @@ impl Graph {
             start: start.uri.clone(),
         };
 
+        log::warn!("Graph::new() document={:?}", start.path.clone().unwrap_or(PathBuf::from(".")));
+
         let Some(start_dir) = &start.dir else {
             return graph;
         };
 
+        log::warn!("Graph::new(): walking up to find root from {:?}...", start_dir.to_file_path().unwrap_or(PathBuf::new()));
         let root = ProjectRoot::walk_and_find(workspace, start_dir);
 
         let mut stack = vec![(start, Rc::new(root))];
         let mut visited = FxHashSet::default();
 
+        log::warn!("Graph::new(): processing edges...");
+
         while let Some((source, root)) = stack.pop() {
             let index = graph.edges.len();
+            log::warn!("\t{:?}: {:?} edges:", &source.language, &source.path.clone().unwrap());
 
             graph.process(
                 workspace,
@@ -84,6 +90,7 @@ impl Graph {
                     };
 
                     let new_root = new_root.map_or_else(|| Rc::clone(&root), Rc::new);
+                    log::warn!("\t\t {:?} -- new root: {:?}", edge.target.to_file_path().unwrap(), new_root.src_dir.to_file_path().unwrap());
 
                     stack.push((workspace.lookup(&edge.target).unwrap(), new_root));
                 }

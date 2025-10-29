@@ -357,6 +357,8 @@ impl Server {
         let mut uri = params.text_document.uri;
         normalize_uri(&mut uri);
 
+        log::warn!("WorkspaceDidOpen -- language: {:?}, uri {:?}", &params.text_document.language_id, uri.to_file_path().unwrap_or(PathBuf::new()));
+
         let language_id = &params.text_document.language_id;
         let language = Language::from_id(language_id).unwrap_or(Language::Tex);
         self.workspace.write().open(
@@ -367,16 +369,21 @@ impl Server {
             LineCol { line: 0, col: 0 },
         );
 
+        log::warn!("WorkspaceDidOpen -- finished opening the workspace. Updating it...");
+
         self.update_workspace();
+        log::warn!("WorkspaceDidOpen -- finished updating the workspace. Updating file syntaxes...");
 
         let workspace = self.workspace.read();
         self.diagnostic_manager
             .update_syntax(&workspace, workspace.lookup(&uri).unwrap());
+        log::warn!("WorkspaceDidOpen -- finished updating syntax of files. Checking for diagnostics...");
 
         if workspace.config().diagnostics.chktex.on_open {
             drop(workspace);
             self.run_chktex(&uri);
         }
+        log::warn!("WorkspaceDidOpen -- finished everything.");
 
         Ok(())
     }
@@ -384,6 +391,8 @@ impl Server {
     fn did_change(&mut self, params: DidChangeTextDocumentParams) -> Result<()> {
         let mut uri = params.text_document.uri;
         normalize_uri(&mut uri);
+
+        log::info!("Notification: WorkspaceDidChange -- uri {:?}", uri.path());
 
         let mut workspace = self.workspace.write();
 
@@ -850,7 +859,8 @@ impl Server {
                         };
 
                         changed |= workspace.load(&path, language).is_ok();
-
+                        let msg = if changed { "changed" } else { "did not change" };
+                        log::info!("FileEvent: loading file {:?} as language {:?} {} the workspace", path, language, msg);
                         if let Some(document) = workspace.lookup_file(&path) {
                             self.diagnostic_manager.update_syntax(&workspace, document);
                         }
