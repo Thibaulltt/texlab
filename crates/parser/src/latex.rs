@@ -1156,14 +1156,14 @@ impl<'a> Parser<'a> {
             self.brack_group_word();
         }
 
-        if self.lexer.peek() == Some(Token::LCurly) {
-            self.curly_group_word_list();
-        }
-
         for _ in 0..3 {
             if self.lexer.peek() == Some(Token::LCurly) {
                 self.curly_group_word();
             }
+        }
+
+        if self.lexer.peek() == Some(Token::LCurly) {
+            self.curly_group_word_list();
         }
 
         self.builder.finish_node();
